@@ -25,5 +25,5 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov=app --cov-fail-under=50"
+addopts = "--cov=app --cov-fail-under=70"
 testpaths = ["tests"]
