@@ -135,6 +135,18 @@ def update_url(url_id):
     return success(serialize_url(url))
 
 
+@urls_bp.route("/urls/<int:url_id>", methods=["DELETE"])
+def delete_url(url_id):
+    try:
+        url = ShortURL.get_by_id(url_id)
+    except ShortURL.DoesNotExist:
+        return not_found("URL")
+
+    _log_event(url, url.user_id, "deleted", {"short_code": url.short_code})
+    url.delete_instance()
+    return "", 204
+
+
 @urls_bp.route("/<short_code>", methods=["GET"])
 def redirect_short_url(short_code):
     try:
