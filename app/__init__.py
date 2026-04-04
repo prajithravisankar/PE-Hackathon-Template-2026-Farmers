@@ -25,4 +25,16 @@ def create_app():
     def health():
         return jsonify(status="ok")
 
+    @app.errorhandler(404)
+    def not_found_handler(e):
+        return jsonify({"error": "Not found"}), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        return jsonify({"error": "Method not allowed"}), 405
+
+    @app.errorhandler(500)
+    def internal_error(e):
+        return jsonify({"error": "Internal server error"}), 500
+
     return app
