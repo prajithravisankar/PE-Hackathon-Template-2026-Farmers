@@ -22,7 +22,7 @@ def create_app():
 
     @app.route("/health")
     def health():
-        return jsonify(status="broken")
+        return jsonify(status="ok")
 
     @app.errorhandler(404)
     def not_found_handler(e):
