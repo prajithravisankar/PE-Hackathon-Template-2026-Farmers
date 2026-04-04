@@ -85,6 +85,10 @@ def list_urls():
             return not_found("User")
         query = query.where(ShortURL.user == user_id)
 
+    is_active = request.args.get("is_active")
+    if is_active is not None:
+        query = query.where(ShortURL.is_active == (is_active.lower() == "true"))
+
     urls = [serialize_url(u) for u in query]
     return success(urls)
 
