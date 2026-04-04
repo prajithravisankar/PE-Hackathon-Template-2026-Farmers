@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+rule_files:
+  - "alert_rules.yml"
+
+scrape_configs:
+  - job_name: "url-shortener"
+    static_configs:
+      - targets: ["app:5000"]
+    metrics_path: /metrics
+    scrape_interval: 10s
