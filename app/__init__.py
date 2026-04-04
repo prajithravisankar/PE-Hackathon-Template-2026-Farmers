@@ -3,7 +3,6 @@ from flask import Flask, jsonify
 
 from app.database import init_db
 from app.routes import register_routes
-
 from app.utils.db_init import create_tables
 
 
@@ -23,7 +22,7 @@ def create_app():
 
     @app.route("/health")
     def health():
-        return jsonify(status="ok")
+        return jsonify(status="broken")
 
     @app.errorhandler(404)
     def not_found_handler(e):
