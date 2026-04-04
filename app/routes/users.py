@@ -78,6 +78,16 @@ def create_user():
     return created(serialize_user(user))
 
 
+@users_bp.route("/users/<int:user_id>", methods=["DELETE"])
+def delete_user(user_id):
+    try:
+        user = User.get_by_id(user_id)
+    except User.DoesNotExist:
+        return not_found("User")
+    user.delete_instance()
+    return "", 204
+
+
 @users_bp.route("/users/<int:user_id>", methods=["PUT"])
 def update_user(user_id):
     try:
