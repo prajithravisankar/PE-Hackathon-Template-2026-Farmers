@@ -31,11 +31,14 @@ def list_events():
 
     url_id = request.args.get("url_id", type=int)
     user_id = request.args.get("user_id", type=int)
+    event_type = request.args.get("event_type")
 
     if url_id is not None:
         query = query.where(Event.url == url_id)
     if user_id is not None:
         query = query.where(Event.user == user_id)
+    if event_type is not None:
+        query = query.where(Event.event_type == event_type)
 
     events = [serialize_event(e) for e in query]
     return success(events)
