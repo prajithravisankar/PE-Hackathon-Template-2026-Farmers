@@ -26,6 +26,15 @@ def list_users():
     page = request.args.get("page", type=int)
     per_page = request.args.get("per_page", type=int)
     query = User.select().order_by(User.id)
+
+    username = request.args.get("username")
+    if username is not None:
+        query = query.where(User.username == username)
+
+    email = request.args.get("email")
+    if email is not None:
+        query = query.where(User.email == email)
+
     if page is not None and per_page is not None:
         page = max(1, page)
         per_page = max(1, min(per_page, 100))
@@ -76,6 +85,16 @@ def create_user():
         return error("Duplicate entry", 409)
 
     return created(serialize_user(user))
+
+
+@users_bp.route("/users/<int:user_id>", methods=["DELETE"])
+def delete_user(user_id):
+    try:
+        user = User.get_by_id(user_id)
+    except User.DoesNotExist:
+        return not_found("User")
+    user.delete_instance()
+    return "", 204
 
 
 @users_bp.route("/users/<int:user_id>", methods=["PUT"])

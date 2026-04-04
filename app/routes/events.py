@@ -1,9 +1,10 @@
+import datetime
 import json
 
 from flask import Blueprint, request
 
-from app.models import Event
-from app.utils.response import success
+from app.models import Event, ShortURL, User
+from app.utils.response import created, error, not_found, success
 
 events_bp = Blueprint("events", __name__)
 
@@ -31,11 +32,78 @@ def list_events():
 
     url_id = request.args.get("url_id", type=int)
     user_id = request.args.get("user_id", type=int)
+    event_type = request.args.get("event_type")
 
     if url_id is not None:
         query = query.where(Event.url == url_id)
     if user_id is not None:
         query = query.where(Event.user == user_id)
+    if event_type is not None:
+        query = query.where(Event.event_type == event_type)
+
+    page = request.args.get("page", type=int)
+    per_page = request.args.get("per_page", type=int)
+    if page is not None and per_page is not None:
+        page = max(1, page)
+        per_page = max(1, min(per_page, 100))
+        query = query.paginate(page, per_page)
 
     events = [serialize_event(e) for e in query]
     return success(events)
+
+
+@events_bp.route("/events", methods=["POST"])
+def create_event():
+    data = request.get_json(silent=True)
+    if not data:
+        return error("Request body must be JSON", 400)
+
+    event_type = data.get("event_type")
+    if not event_type:
+        return error("event_type is required", 422)
+
+    url_id = data.get("url_id")
+    user_id = data.get("user_id")
+
+    if url_id is not None:
+        try:
+            ShortURL.get_by_id(url_id)
+        except ShortURL.DoesNotExist:
+            return not_found("URL")
+
+    if user_id is not None:
+        try:
+            User.get_by_id(user_id)
+        except User.DoesNotExist:
+            return not_found("User")
+
+    details = data.get("details", {})
+
+    event = Event.create(
+        url=url_id,
+        user=user_id,
+        event_type=event_type,
+        timestamp=datetime.datetime.utcnow(),
+        details=json.dumps(details) if isinstance(details, dict) else details,
+    )
+
+    return created(serialize_event(event))
+
+
+@events_bp.route("/events/<int:event_id>", methods=["GET"])
+def get_event(event_id):
+    try:
+        event = Event.get_by_id(event_id)
+    except Event.DoesNotExist:
+        return not_found("Event")
+    return success(serialize_event(event))
+
+
+@events_bp.route("/events/<int:event_id>", methods=["DELETE"])
+def delete_event(event_id):
+    try:
+        event = Event.get_by_id(event_id)
+    except Event.DoesNotExist:
+        return not_found("Event")
+    event.delete_instance()
+    return "", 204
