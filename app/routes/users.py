@@ -26,6 +26,15 @@ def list_users():
     page = request.args.get("page", type=int)
     per_page = request.args.get("per_page", type=int)
     query = User.select().order_by(User.id)
+
+    username = request.args.get("username")
+    if username is not None:
+        query = query.where(User.username == username)
+
+    email = request.args.get("email")
+    if email is not None:
+        query = query.where(User.email == email)
+
     if page is not None and per_page is not None:
         page = max(1, page)
         per_page = max(1, min(per_page, 100))

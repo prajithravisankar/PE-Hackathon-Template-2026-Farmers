@@ -2,6 +2,7 @@ import datetime
 import json
 
 from flask import Blueprint, redirect, request
+from peewee import fn
 from peewee import IntegrityError
 
 from app.models import Event, ShortURL, User
@@ -156,6 +157,35 @@ def delete_url(url_id):
     _log_event(url, url.user_id, "deleted", {"short_code": url.short_code})
     url.delete_instance()
     return "", 204
+
+
+@urls_bp.route("/urls/<int:url_id>/stats", methods=["GET"])
+def get_url_stats(url_id):
+    try:
+        url = ShortURL.get_by_id(url_id)
+    except ShortURL.DoesNotExist:
+        return not_found("URL")
+
+    total_events = Event.select().where(Event.url == url_id).count()
+    total_clicks = Event.select().where(
+        (Event.url == url_id) & (Event.event_type == "visited")
+    ).count()
+
+    last_visited = (
+        Event.select(Event.timestamp)
+        .where((Event.url == url_id) & (Event.event_type == "visited"))
+        .order_by(Event.timestamp.desc())
+        .first()
+    )
+
+    return success({
+        "id": url.id,
+        "short_code": url.short_code,
+        "original_url": url.original_url,
+        "total_events": total_events,
+        "total_clicks": total_clicks,
+        "last_visited": last_visited.timestamp.isoformat() if last_visited else None,
+    })
 
 
 @urls_bp.route("/<short_code>", methods=["GET"])
