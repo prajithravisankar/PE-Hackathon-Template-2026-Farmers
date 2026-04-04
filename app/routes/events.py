@@ -41,6 +41,13 @@ def list_events():
     if event_type is not None:
         query = query.where(Event.event_type == event_type)
 
+    page = request.args.get("page", type=int)
+    per_page = request.args.get("per_page", type=int)
+    if page is not None and per_page is not None:
+        page = max(1, page)
+        per_page = max(1, min(per_page, 100))
+        query = query.paginate(page, per_page)
+
     events = [serialize_event(e) for e in query]
     return success(events)
 
@@ -81,3 +88,22 @@ def create_event():
     )
 
     return created(serialize_event(event))
+
+
+@events_bp.route("/events/<int:event_id>", methods=["GET"])
+def get_event(event_id):
+    try:
+        event = Event.get_by_id(event_id)
+    except Event.DoesNotExist:
+        return not_found("Event")
+    return success(serialize_event(event))
+
+
+@events_bp.route("/events/<int:event_id>", methods=["DELETE"])
+def delete_event(event_id):
+    try:
+        event = Event.get_by_id(event_id)
+    except Event.DoesNotExist:
+        return not_found("Event")
+    event.delete_instance()
+    return "", 204

@@ -89,6 +89,13 @@ def list_urls():
     if is_active is not None:
         query = query.where(ShortURL.is_active == (is_active.lower() == "true"))
 
+    page = request.args.get("page", type=int)
+    per_page = request.args.get("per_page", type=int)
+    if page is not None and per_page is not None:
+        page = max(1, page)
+        per_page = max(1, min(per_page, 100))
+        query = query.paginate(page, per_page)
+
     urls = [serialize_url(u) for u in query]
     return success(urls)
 
