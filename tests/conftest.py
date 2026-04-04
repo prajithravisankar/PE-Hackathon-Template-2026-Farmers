@@ -17,13 +17,4 @@ def client(app):
     return app.test_client()
 
 
-@pytest.fixture(autouse=True)
-def clean_db():
-    # Truncate in reverse dependency order before each test
-    Event.delete().execute()
-    ShortURL.delete().execute()
-    User.delete().execute()
-    yield
-    Event.delete().execute()
-    ShortURL.delete().execute()
-    User.delete().execute()
+
