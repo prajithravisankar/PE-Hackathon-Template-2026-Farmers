@@ -11,6 +11,7 @@ def create_app():
     load_dotenv()
 
     app = Flask(__name__)
+    app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024  # 1 MB
 
     init_db(app)
 
@@ -32,6 +33,10 @@ def create_app():
     @app.errorhandler(405)
     def method_not_allowed(e):
         return jsonify({"error": "Method not allowed"}), 405
+
+    @app.errorhandler(413)
+    def request_too_large(e):
+        return jsonify({"error": "Request too large. Maximum size is 1 MB."}), 413
 
     @app.errorhandler(500)
     def internal_error(e):

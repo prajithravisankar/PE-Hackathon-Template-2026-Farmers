@@ -3,6 +3,69 @@ def _create_user(client, username="testuser", email="test@example.com"):
     return resp.get_json()["id"]
 
 
+# ---------- Redirect short code ----------
+
+def test_redirect_short_code_returns_302(client):
+    user_id = _create_user(client)
+    create_resp = client.post("/urls", json={
+        "user_id": user_id,
+        "original_url": "https://example.com",
+    })
+    short_code = create_resp.get_json()["short_code"]
+
+    response = client.get(f"/{short_code}")
+    assert response.status_code == 302
+    assert "example.com" in response.headers["Location"]
+
+
+def test_redirect_deactivated_url_returns_410(client):
+    user_id = _create_user(client)
+    create_resp = client.post("/urls", json={
+        "user_id": user_id,
+        "original_url": "https://example.com",
+    })
+    data = create_resp.get_json()
+    url_id = data["id"]
+    short_code = data["short_code"]
+
+    client.put(f"/urls/{url_id}", json={"is_active": False})
+    response = client.get(f"/{short_code}")
+    assert response.status_code == 410
+
+
+def test_redirect_unknown_code_returns_404(client):
+    response = client.get("/ZZZZZZ")
+    assert response.status_code == 404
+
+
+# ---------- PUT /urls edge cases ----------
+
+def test_put_url_returns_404_for_missing_id(client):
+    response = client.put("/urls/99999", json={"title": "nope"})
+    assert response.status_code == 404
+
+
+def test_put_url_invalid_original_url_returns_422(client):
+    user_id = _create_user(client, username="putu", email="putu@example.com")
+    create_resp = client.post("/urls", json={
+        "user_id": user_id,
+        "original_url": "https://example.com",
+    })
+    url_id = create_resp.get_json()["id"]
+
+    response = client.put(f"/urls/{url_id}", json={"original_url": "not-valid"})
+    assert response.status_code == 422
+
+
+# ---------- GET /urls?user_id= edge cases ----------
+
+def test_list_urls_missing_user_returns_404(client):
+    response = client.get("/urls?user_id=99999")
+    assert response.status_code == 404
+
+
+# ---------- Original tests ----------
+
 def test_create_url_returns_201(client):
     user_id = _create_user(client)
     response = client.post("/urls", json={

@@ -3,6 +3,39 @@ def _create_user(client, username="evtuser", email="evt@example.com"):
     return resp.get_json()["id"]
 
 
+def _create_url_and_get_ids(client):
+    """Create a user + url, return (user_id, url_id)."""
+    user_id = _create_user(client)
+    resp = client.post("/urls", json={
+        "user_id": user_id,
+        "original_url": "https://example.com",
+    })
+    url_id = resp.get_json()["id"]
+    return user_id, url_id
+
+
+# ---------- Filter tests ----------
+
+def test_filter_events_by_url_id(client):
+    _, url_id = _create_url_and_get_ids(client)
+    response = client.get(f"/events?url_id={url_id}")
+    assert response.status_code == 200
+    events = response.get_json()
+    assert len(events) >= 1
+    assert all(e["url_id"] == url_id for e in events)
+
+
+def test_filter_events_by_user_id(client):
+    user_id, _ = _create_url_and_get_ids(client)
+    response = client.get(f"/events?user_id={user_id}")
+    assert response.status_code == 200
+    events = response.get_json()
+    assert len(events) >= 1
+    assert all(e["user_id"] == user_id for e in events)
+
+
+# ---------- Original tests ----------
+
 def test_get_events_returns_array(client):
     response = client.get("/events")
     assert response.status_code == 200

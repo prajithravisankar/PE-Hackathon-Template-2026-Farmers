@@ -1,6 +1,72 @@
 import io
 
 
+# ---------- GET /users/<id> success ----------
+
+def test_get_user_returns_user_object(client):
+    create_resp = client.post("/users", json={
+        "username": "fetchme",
+        "email": "fetchme@example.com",
+    })
+    user_id = create_resp.get_json()["id"]
+
+    response = client.get(f"/users/{user_id}")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["username"] == "fetchme"
+    assert data["email"] == "fetchme@example.com"
+
+
+# ---------- PUT /users validation edge cases ----------
+
+def test_put_user_rejects_invalid_username(client):
+    create_resp = client.post("/users", json={
+        "username": "orig",
+        "email": "orig@example.com",
+    })
+    user_id = create_resp.get_json()["id"]
+
+    response = client.put(f"/users/{user_id}", json={"username": "has spaces"})
+    assert response.status_code == 422
+
+
+def test_put_user_rejects_invalid_email(client):
+    create_resp = client.post("/users", json={
+        "username": "orig2",
+        "email": "orig2@example.com",
+    })
+    user_id = create_resp.get_json()["id"]
+
+    response = client.put(f"/users/{user_id}", json={"email": "not-an-email"})
+    assert response.status_code == 422
+
+
+def test_put_user_updates_email(client):
+    create_resp = client.post("/users", json={
+        "username": "emailup",
+        "email": "old@example.com",
+    })
+    user_id = create_resp.get_json()["id"]
+
+    response = client.put(f"/users/{user_id}", json={"email": "new@example.com"})
+    assert response.status_code == 200
+    assert response.get_json()["email"] == "new@example.com"
+
+
+def test_put_user_duplicate_username_returns_409(client):
+    client.post("/users", json={"username": "taken", "email": "taken@example.com"})
+    create_resp = client.post("/users", json={
+        "username": "mover",
+        "email": "mover@example.com",
+    })
+    user_id = create_resp.get_json()["id"]
+
+    response = client.put(f"/users/{user_id}", json={"username": "taken"})
+    assert response.status_code == 409
+
+
+# ---------- Original tests ----------
+
 def test_create_user_returns_201(client):
     response = client.post("/users", json={
         "username": "newuser",
