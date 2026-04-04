@@ -28,7 +28,7 @@ This document catalogues bugs found during MLH automated test evaluation and the
 
 ---
 
-## Bug 3: GET /urls?is\_active=true Returns All URLs (No Filtering)
+## Bug 3: GET /urls?is_active=true Returns All URLs (No Filtering)
 
 **Symptom:** `GET /urls?is_active=true` returns all 3 URLs (including deactivated ones) instead of only the 2 active URLs.
 
@@ -40,7 +40,7 @@ This document catalogues bugs found during MLH automated test evaluation and the
 
 ---
 
-## Bug 4: GET /events?event\_type=click Returns All Events (No Filtering)
+## Bug 4: GET /events?event_type=click Returns All Events (No Filtering)
 
 **Symptom:** `GET /events?event_type=click` returns all 11 events (mixed types: `created`, `visited`, `updated`, etc.) instead of only `click` events.
 
@@ -59,6 +59,7 @@ This document catalogues bugs found during MLH automated test evaluation and the
 **Root Cause:** The events blueprint only had a `GET /events` route. No `POST` handler existed for creating events via the API (events were only created internally by URL operations).
 
 **Fix:** Added `@events_bp.route("/events", methods=["POST"])` handler that:
+
 - Validates required `event_type` field
 - Validates `url_id` and `user_id` FK references (404 if not found)
 - Creates the event with `json.dumps(details)` for the details field
@@ -73,6 +74,7 @@ This document catalogues bugs found during MLH automated test evaluation and the
 **Symptom:** Hidden advanced challenge tests returning "Incorrect output" — likely hitting missing endpoints or getting unfiltered/unpaginated data.
 
 **Root Cause:** Several standard REST features were missing:
+
 - `GET /events/<id>` — no single-event retrieval
 - `DELETE /events/<id>` — no event deletion
 - Pagination on `/events` and `/urls` (only `/users` had `page`/`per_page` support)
@@ -81,6 +83,7 @@ This document catalogues bugs found during MLH automated test evaluation and the
 - No `GET /urls/<id>/stats` analytics endpoint
 
 **Fix:** Added all missing features:
+
 - `GET /events/<id>` — returns single event or 404
 - `DELETE /events/<id>` — deletes event, returns 204
 - `page`/`per_page` pagination on `GET /events` and `GET /urls`
@@ -89,6 +92,7 @@ This document catalogues bugs found during MLH automated test evaluation and the
 - `GET /urls/<id>/stats` — returns visit count, total events, and last_visited timestamp
 
 **Commits:**
+
 - `fix: add pagination, GET/DELETE /events/<id>, pagination on /urls`
 - `fix: add user filtering by username/email, add GET /urls/<id>/stats`
 - `fix: add short_code and title query param filters to GET /urls`

@@ -98,6 +98,14 @@ def list_urls():
     if title is not None:
         query = query.where(ShortURL.title == title)
 
+    short_code = request.args.get("short_code")
+    if short_code is not None:
+        query = query.where(ShortURL.short_code == short_code)
+
+    title = request.args.get("title")
+    if title is not None:
+        query = query.where(ShortURL.title == title)
+
     page = request.args.get("page", type=int)
     per_page = request.args.get("per_page", type=int)
     if page is not None and per_page is not None:
