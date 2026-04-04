@@ -1,0 +1,149 @@
+import datetime
+import json
+
+from flask import Blueprint, redirect, request
+from peewee import IntegrityError
+
+from app.models import Event, ShortURL, User
+from app.utils.response import created, error, not_found, success
+from app.utils.short_code import generate_short_code
+from app.utils.validators import is_valid_url
+
+urls_bp = Blueprint("urls", __name__)
+
+
+def serialize_url(url):
+    return {
+        "id": url.id,
+        "user_id": url.user_id,
+        "short_code": url.short_code,
+        "original_url": url.original_url,
+        "title": url.title,
+        "is_active": url.is_active,
+        "created_at": url.created_at.isoformat() if url.created_at else None,
+        "updated_at": url.updated_at.isoformat() if url.updated_at else None,
+    }
+
+
+def _log_event(url, user_id, event_type, details_dict):
+    Event.create(
+        url=url,
+        user=user_id,
+        event_type=event_type,
+        timestamp=datetime.datetime.utcnow(),
+        details=json.dumps(details_dict),
+    )
+
+
+@urls_bp.route("/urls", methods=["POST"])
+def create_url():
+    data = request.get_json(silent=True)
+    if not data:
+        return error("Request body must be JSON", 400)
+
+    original_url = data.get("original_url")
+    if not original_url or not is_valid_url(original_url):
+        return error("Invalid URL format", 422, {"original_url": "Must be a valid URL (e.g. https://example.com)"})
+
+    user_id = data.get("user_id")
+    if user_id is not None:
+        try:
+            User.get_by_id(user_id)
+        except User.DoesNotExist:
+            return not_found("User")
+
+    short_code = generate_short_code()
+    now = datetime.datetime.utcnow()
+
+    url = ShortURL.create(
+        user=user_id,
+        short_code=short_code,
+        original_url=original_url,
+        title=data.get("title"),
+        is_active=True,
+        created_at=now,
+        updated_at=now,
+    )
+
+    _log_event(url, user_id, "created", {
+        "short_code": short_code,
+        "original_url": original_url,
+    })
+
+    return created(serialize_url(url))
+
+
+@urls_bp.route("/urls", methods=["GET"])
+def list_urls():
+    user_id = request.args.get("user_id", type=int)
+    query = ShortURL.select().order_by(ShortURL.id)
+
+    if user_id is not None:
+        try:
+            User.get_by_id(user_id)
+        except User.DoesNotExist:
+            return not_found("User")
+        query = query.where(ShortURL.user == user_id)
+
+    urls = [serialize_url(u) for u in query]
+    return success(urls)
+
+
+@urls_bp.route("/urls/<int:url_id>", methods=["GET"])
+def get_url(url_id):
+    try:
+        url = ShortURL.get_by_id(url_id)
+    except ShortURL.DoesNotExist:
+        return not_found("URL")
+    return success(serialize_url(url))
+
+
+@urls_bp.route("/urls/<int:url_id>", methods=["PUT"])
+def update_url(url_id):
+    try:
+        url = ShortURL.get_by_id(url_id)
+    except ShortURL.DoesNotExist:
+        return not_found("URL")
+
+    data = request.get_json(silent=True)
+    if not data:
+        return error("Request body must be JSON", 400)
+
+    if "original_url" in data:
+        if not is_valid_url(data["original_url"]):
+            return error("Invalid URL format", 422)
+        url.original_url = data["original_url"]
+
+    if "title" in data:
+        url.title = data["title"]
+
+    deactivated = False
+    if "is_active" in data:
+        new_val = data["is_active"]
+        if url.is_active and not new_val:
+            deactivated = True
+        url.is_active = new_val
+
+    url.updated_at = datetime.datetime.utcnow()
+    url.save()
+
+    if deactivated:
+        _log_event(url, url.user_id, "deactivated", {"short_code": url.short_code})
+    else:
+        _log_event(url, url.user_id, "updated", {"short_code": url.short_code})
+
+    return success(serialize_url(url))
+
+
+@urls_bp.route("/<short_code>", methods=["GET"])
+def redirect_short_url(short_code):
+    try:
+        url = ShortURL.get(ShortURL.short_code == short_code)
+    except ShortURL.DoesNotExist:
+        return not_found("URL")
+
+    if not url.is_active:
+        return error("URL is deactivated", 410)
+
+    _log_event(url, url.user_id, "visited", {"short_code": url.short_code})
+    return redirect(url.original_url, 302)
