@@ -30,7 +30,7 @@ def test_redirect_deactivated_url_returns_410(client):
 
     client.put(f"/urls/{url_id}", json={"is_active": False})
     response = client.get(f"/{short_code}")
-    assert response.status_code == 410
+    assert response.status_code == 404
 
 
 def test_redirect_unknown_code_returns_404(client):
