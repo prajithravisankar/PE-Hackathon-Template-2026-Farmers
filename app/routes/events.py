@@ -30,6 +30,18 @@ def serialize_event(event):
         except ShortURL.DoesNotExist:
             url_obj = None
 
+    user_obj = None
+    if event.user_id is not None:
+        try:
+            user = User.get_by_id(event.user_id)
+            user_obj = {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+            }
+        except User.DoesNotExist:
+            user_obj = None
+
     return {
         "id": event.id,
         "url_id": event.url_id,
@@ -38,6 +50,7 @@ def serialize_event(event):
         "timestamp": event.timestamp.isoformat() if event.timestamp else None,
         "details": details if details is not None else {},
         "url": url_obj,
+        "user": user_obj,
     }
 
 
