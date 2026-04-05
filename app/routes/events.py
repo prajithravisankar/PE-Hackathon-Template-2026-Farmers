@@ -17,31 +17,28 @@ def serialize_event(event):
         except (json.JSONDecodeError, TypeError):
             details = {}
 
-    result = {
-        "id": event.id,
-        "url_id": event.url_id,
-        "user_id": event.user_id,
-        "event_type": event.event_type,
-        "timestamp": event.timestamp.isoformat() if event.timestamp else None,
-        "details": details if details is not None else {},
-    }
-
-    # Link URL data into event response
-    if event.url_id:
+    url_obj = None
+    if event.url_id is not None:
         try:
             url = ShortURL.get_by_id(event.url_id)
-            result["url"] = {
+            url_obj = {
                 "id": url.id,
                 "short_code": url.short_code,
                 "original_url": url.original_url,
                 "title": url.title,
             }
         except ShortURL.DoesNotExist:
-            result["url"] = None
-    else:
-        result["url"] = None
+            url_obj = None
 
-    return result
+    return {
+        "id": event.id,
+        "url_id": event.url_id,
+        "user_id": event.user_id,
+        "event_type": event.event_type,
+        "timestamp": event.timestamp.isoformat() if event.timestamp else None,
+        "details": details if details is not None else {},
+        "url": url_obj,
+    }
 
 
 @events_bp.route("/events", methods=["GET"])
@@ -122,6 +119,54 @@ def get_event(event_id):
         event = Event.get_by_id(event_id)
     except Event.DoesNotExist:
         return not_found("Event")
+    return success(serialize_event(event))
+
+
+@events_bp.route("/events/<int:event_id>", methods=["PUT"])
+def update_event(event_id):
+    try:
+        event = Event.get_by_id(event_id)
+    except Event.DoesNotExist:
+        return not_found("Event")
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return error("Request body must be a JSON object", 400)
+
+    if "event_type" in data:
+        if not isinstance(data["event_type"], str) or not data["event_type"].strip():
+            return error("event_type must be a non-empty string", 422)
+        event.event_type = data["event_type"]
+
+    if "url_id" in data:
+        url_id = data["url_id"]
+        if url_id is not None:
+            if not isinstance(url_id, int) or isinstance(url_id, bool):
+                return error("url_id must be an integer", 422)
+            try:
+                ShortURL.get_by_id(url_id)
+            except ShortURL.DoesNotExist:
+                return not_found("URL")
+        event.url = url_id
+
+    if "user_id" in data:
+        user_id = data["user_id"]
+        if user_id is not None:
+            if not isinstance(user_id, int) or isinstance(user_id, bool):
+                return error("user_id must be an integer", 422)
+            try:
+                User.get_by_id(user_id)
+            except User.DoesNotExist:
+                return not_found("User")
+        event.user = user_id
+
+    if "details" in data:
+        details = data["details"]
+        if details is not None and not isinstance(details, dict):
+            return error("Details must be a JSON object", 422)
+        event.details = json.dumps(details if details is not None else {})
+
+    event.save()
     return success(serialize_event(event))
 
 
