@@ -69,10 +69,8 @@ def create_event():
         if not isinstance(url_id, int) or isinstance(url_id, bool):
             return error("url_id must be an integer", 422)
         try:
-            url_obj = ShortURL.get_by_id(url_id)
+            ShortURL.get_by_id(url_id)
         except ShortURL.DoesNotExist:
-            return not_found("URL")
-        if not url_obj.is_active:
             return not_found("URL")
 
     if user_id is not None:
