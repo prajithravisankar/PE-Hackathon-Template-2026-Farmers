@@ -40,13 +40,13 @@ def test_post_users_with_non_json_body_returns_400(client):
 
 
 def test_post_urls_with_no_body_returns_400(client):
-    """POST /urls with empty body → 400."""
+    """POST /urls with empty body → 422."""
     response = client.post(
         "/urls",
         data="garbage",
         content_type="text/plain",
     )
-    assert response.status_code == 400
+    assert response.status_code == 422
     data = response.get_json()
     assert "error" in data
 
@@ -70,7 +70,7 @@ def test_put_urls_with_no_json_returns_400(client):
         data="not json",
         content_type="text/plain",
     )
-    assert response.status_code == 400
+    assert response.status_code == 422
     data = response.get_json()
     assert "error" in data
 
