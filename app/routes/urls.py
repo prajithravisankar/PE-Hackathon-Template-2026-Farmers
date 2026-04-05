@@ -192,12 +192,12 @@ def get_url_stats(url_id):
 
     total_events = Event.select().where(Event.url == url_id).count()
     total_clicks = Event.select().where(
-        (Event.url == url_id) & (Event.event_type == "visited")
+        (Event.url == url_id) & (Event.event_type == "click")
     ).count()
 
     last_visited = (
         Event.select(Event.timestamp)
-        .where((Event.url == url_id) & (Event.event_type == "visited"))
+        .where((Event.url == url_id) & (Event.event_type == "click"))
         .order_by(Event.timestamp.desc())
         .first()
     )
@@ -234,5 +234,5 @@ def redirect_short_url(short_code):
     if not url.is_active:
         return not_found("URL")
 
-    _log_event(url, url.user_id, "visited", {"short_code": url.short_code, "original_url": url.original_url})
+    _log_event(url, url.user_id, "click", {"short_code": url.short_code, "original_url": url.original_url})
     return redirect(url.original_url, 302)
