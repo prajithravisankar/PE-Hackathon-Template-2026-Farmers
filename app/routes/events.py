@@ -59,8 +59,8 @@ def create_event():
         return error("Request body must be JSON", 400)
 
     event_type = data.get("event_type")
-    if not event_type:
-        return error("event_type is required", 422)
+    if not isinstance(event_type, str) or not event_type.strip():
+        return error("event_type must be a non-empty string", 422)
 
     url_id = data.get("url_id")
     user_id = data.get("user_id")
@@ -77,14 +77,18 @@ def create_event():
         except User.DoesNotExist:
             return not_found("User")
 
-    details = data.get("details", {})
+    details = data.get("details")
+    if details is None:
+        details = {}
+    elif not isinstance(details, dict):
+        return error("'details' must be a JSON object", 422)
 
     event = Event.create(
         url=url_id,
         user=user_id,
         event_type=event_type,
         timestamp=datetime.datetime.utcnow(),
-        details=json.dumps(details) if isinstance(details, dict) else details,
+        details=json.dumps(details),
     )
 
     return created(serialize_event(event))
