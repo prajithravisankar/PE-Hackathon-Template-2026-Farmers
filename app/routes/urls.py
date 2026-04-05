@@ -48,6 +48,8 @@ def create_url():
 
     user_id = data.get("user_id")
     if user_id is not None:
+        if not isinstance(user_id, int) or isinstance(user_id, bool):
+            return error("user_id must be an integer", 422)
         try:
             User.get_by_id(user_id)
         except User.DoesNotExist:
@@ -214,5 +216,5 @@ def redirect_short_url(short_code):
     if not url.is_active:
         return error("URL is deactivated", 410)
 
-    _log_event(url, url.user_id, "visited", {"short_code": url.short_code})
+    _log_event(url, url.user_id, "visited", {"short_code": url.short_code, "original_url": url.original_url})
     return redirect(url.original_url, 302)

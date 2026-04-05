@@ -154,14 +154,14 @@ def bulk_import_users():
             continue
 
         try:
-            User.create(
+            User.get_or_create(
                 username=username,
-                email=email,
-                created_at=datetime.datetime.utcnow(),
+                defaults={
+                    "email": email,
+                    "created_at": datetime.datetime.utcnow(),
+                },
             )
             imported += 1
-        except IntegrityError:
-            continue
         except Exception:
             continue
 

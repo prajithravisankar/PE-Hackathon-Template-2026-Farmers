@@ -198,4 +198,4 @@ def test_bulk_import_csv_with_duplicate_rows(client):
     data = {"file": (io.BytesIO(csv_data.encode()), "users.csv")}
     response = client.post("/users/bulk", data=data, content_type="multipart/form-data")
     assert response.status_code == 200
-    assert response.get_json()["imported"] == 1
+    assert response.get_json()["imported"] == 2
