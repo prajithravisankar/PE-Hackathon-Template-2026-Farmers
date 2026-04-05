@@ -6,6 +6,7 @@ from peewee import fn
 from peewee import IntegrityError
 
 from app.models import Event, ShortURL, User
+from app.utils.cache import cache_response, invalidate_cache
 from app.utils.response import created, error, not_found, success
 from app.utils.short_code import generate_short_code
 from app.utils.validators import is_valid_url
@@ -73,10 +74,12 @@ def create_url():
         "original_url": original_url,
     })
 
+    invalidate_cache("urls")
     return created(serialize_url(url))
 
 
 @urls_bp.route("/urls", methods=["GET"])
+@cache_response("urls", ttl=15)
 def list_urls():
     user_id = request.args.get("user_id", type=int)
     query = ShortURL.select().order_by(ShortURL.id)
@@ -162,6 +165,7 @@ def update_url(url_id):
     else:
         _log_event(url, url.user_id, "updated", {"short_code": url.short_code})
 
+    invalidate_cache("urls")
     return success(serialize_url(url))
 
 
@@ -174,6 +178,7 @@ def delete_url(url_id):
 
     _log_event(url, url.user_id, "deleted", {"short_code": url.short_code})
     url.delete_instance()
+    invalidate_cache("urls")
     return "", 204
 
 

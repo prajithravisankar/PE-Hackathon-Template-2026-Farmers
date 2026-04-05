@@ -116,3 +116,127 @@ k6 run --summary-export=load_tests/scale_out_results.json load_tests/scale_out.j
 
 **Observations:**
 > Fill in after running the test. Note: if p95 exceeds 3,000 ms, the next optimization is Redis caching (Phase 5.3) to offload read-heavy endpoints from PostgreSQL.
+
+---
+
+## Gold: Tsunami (2 Flask Instances + Nginx + Redis Cache-Aside)
+
+**What Changed:**
+- Introduced Redis cache-aside pattern for read-heavy GET endpoints
+- `GET /users` cached with 30-second TTL
+- `GET /urls` cached with 15-second TTL (shorter — URLs change more frequently)
+- All write operations (POST, PUT, DELETE) invalidate the relevant cache immediately
+- Cache responses include `X-Cache: HIT` or `X-Cache: MISS` header for observability
+- Redis errors are caught and logged — cache is **never** a single point of failure
+
+**Cache-Aside Architecture:**
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant N as Nginx (LB)
+    participant A as Flask App
+    participant R as Redis Cache
+    participant P as PostgreSQL
+
+    Note over C,P: READ PATH (GET /users, GET /urls)
+    C->>N: GET /users
+    N->>A: forward (least_conn)
+    A->>R: GET cache key "users:/users"
+    alt Cache HIT
+        R-->>A: cached JSON
+        A-->>N: 200 + X-Cache: HIT
+    else Cache MISS
+        R-->>A: nil
+        A->>P: SELECT * FROM users
+        P-->>A: rows
+        A->>R: SET "users:/users" (TTL 30s)
+        A-->>N: 200 + X-Cache: MISS
+    end
+    N-->>C: response
+
+    Note over C,P: WRITE PATH (POST/PUT/DELETE)
+    C->>N: POST /users
+    N->>A: forward
+    A->>P: INSERT INTO users
+    A->>R: SCAN + DEL "users:*"
+    A-->>N: 201 Created
+    N-->>C: response
+```
+
+**Why Cache-Aside (vs. Write-Through)?**
+Cache-aside is the simplest caching strategy and the safest for a hackathon project:
+- The database is always the source of truth
+- Cache misses are self-healing (automatically repopulate on next read)
+- If Redis goes down, the app still works — just hits PostgreSQL directly
+- Write-through would add complexity (dual-write consistency) without proportional benefit at our scale
+
+**Why Different TTLs?**
+- **Users (30s):** User records change infrequently (mostly created, rarely updated/deleted)
+- **URLs (15s):** URLs are the hot path — created, visited, updated more often. Shorter TTL reduces stale reads while still absorbing burst traffic
+- **Events (not cached):** Events are write-heavy and rarely queried for the same data twice
+
+**Why SCAN-based Invalidation?**
+We use `SCAN` with a prefix pattern (e.g., `users:*`) instead of tracking individual keys. This ensures all cached variants (including any future paginated/filtered endpoints) are invalidated on write, with zero bookkeeping overhead. SCAN is cursor-based and non-blocking — safe for production Redis.
+
+**Test Parameters:**
+- Tool: k6
+- Virtual Users (VUs): 500 (ramped: 0→250 in 10s, 250→500 over 40s, ramp-down 10s)
+- Duration: 60 seconds total
+- Target: `http://localhost:80` (Nginx → 2 Flask instances → Redis + PostgreSQL)
+- Read/Write ratio: 80% reads / 20% writes (simulates realistic production traffic)
+- Endpoints: `GET /health`, `GET /users`, `GET /urls`, `GET /events`, `POST /users`
+
+**How to Run:**
+```bash
+docker-compose up -d --build
+k6 run --summary-export=load_tests/tsunami_results.json load_tests/tsunami.js
+```
+
+**Results:**
+
+> ⚠️ Fill in after running the tsunami test against the cached stack.
+
+| Metric | Baseline (1 inst) | Scale-Out (2 inst) | Tsunami (2 inst + cache) | Change (vs Baseline) |
+|---|---|---|---|---|
+| **p95 Response Time** | 2,470 ms | _TBD_ | _TBD_ | _TBD_ |
+| **Median (p50)** | 1,940 ms | _TBD_ | _TBD_ | _TBD_ |
+| **Error Rate** | 0.00% | _TBD_ | _TBD_ | _TBD_ |
+| **Requests/sec** | 24.7 | _TBD_ | _TBD_ | _TBD_ |
+| **Total Requests** | 765 | _TBD_ | _TBD_ | _TBD_ |
+| **VUs** | 50 | 200 | 500 | 10× |
+
+**Expected Improvements:**
+- Cache hits bypass PostgreSQL entirely → dramatically lower p95 for read endpoints
+- 80% read traffic at 500 VUs should see most requests served from Redis (sub-10ms cache lookups vs. ~50ms+ DB queries)
+- Write operations still hit PostgreSQL but trigger instant cache invalidation
+- Gold SLO target: p95 < 3,000 ms at 500 VUs
+
+**Bottleneck Analysis:**
+
+```mermaid
+graph LR
+    subgraph "Bottleneck Progression"
+        B1["Phase 5.1<br/>Flask dev server<br/>(serial requests)"] -->|"Add Nginx LB"| B2["Phase 5.2<br/>PostgreSQL<br/>(all reads hit DB)"]
+        B2 -->|"Add Redis cache"| B3["Phase 5.3<br/>Connection pool<br/>(many VUs contend<br/>for DB connections)"]
+    end
+
+    style B1 fill:#ff6b6b,color:#fff
+    style B2 fill:#ffa500,color:#fff
+    style B3 fill:#4ecdc4,color:#fff
+```
+
+| Phase | Primary Bottleneck | Mitigation | Result |
+|---|---|---|---|
+| 5.1 Baseline | Flask dev server (serial) | — | 24.7 RPS, p95 = 2.47s |
+| 5.2 Scale-Out | PostgreSQL (all reads) | Nginx + 2 instances | _TBD_ |
+| 5.3 Tsunami | DB connection contention | Redis cache-aside | _TBD_ |
+
+**What Would Fail Next (If We Scaled to 1000+ VUs):**
+- PostgreSQL connection pool exhaustion (Peewee defaults are limited)
+- Redis memory pressure if cached payloads grow large
+- Nginx worker connection limits (default `worker_connections 1024`)
+- Potential write amplification from frequent cache invalidation under heavy write load
+
+**Observations:**
+> Fill in after running the tsunami test. Compare cache HIT rate (from X-Cache headers) against expectations. If p95 still exceeds target, investigate connection pooling or query optimization.
