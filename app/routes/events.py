@@ -183,6 +183,11 @@ def update_event(event_id):
     return success(serialize_event(event))
 
 
+@events_bp.route("/events/<int:event_id>", methods=["PATCH"])
+def patch_event(event_id):
+    return update_event(event_id)
+
+
 @events_bp.route("/events/<int:event_id>", methods=["DELETE"])
 def delete_event(event_id):
     try:
