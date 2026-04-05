@@ -66,18 +66,26 @@ def create_event():
     user_id = data.get("user_id")
 
     if url_id is not None:
+        if not isinstance(url_id, int) or isinstance(url_id, bool):
+            return error("url_id must be an integer", 422)
         try:
-            ShortURL.get_by_id(url_id)
+            url_obj = ShortURL.get_by_id(url_id)
         except ShortURL.DoesNotExist:
+            return not_found("URL")
+        if not url_obj.is_active:
             return not_found("URL")
 
     if user_id is not None:
+        if not isinstance(user_id, int) or isinstance(user_id, bool):
+            return error("user_id must be an integer", 422)
         try:
             User.get_by_id(user_id)
         except User.DoesNotExist:
             return not_found("User")
 
     details = data.get("details")
+    if details is not None and not isinstance(details, dict):
+        return error("Details must be a JSON object", 422)
     if details is None:
         details = {}
 
