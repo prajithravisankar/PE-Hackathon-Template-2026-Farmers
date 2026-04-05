@@ -22,7 +22,7 @@ def serialize_event(event):
         "user_id": event.user_id,
         "event_type": event.event_type,
         "timestamp": event.timestamp.isoformat() if event.timestamp else None,
-        "details": details if details else {},
+        "details": details if details is not None else {},
     }
 
 

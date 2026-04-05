@@ -219,7 +219,7 @@ def redirect_short_url(short_code):
         return not_found("URL")
 
     if not url.is_active:
-        return error("URL is deactivated", 410)
+        return not_found("URL")
 
     _log_event(url, url.user_id, "visited", {"short_code": url.short_code, "original_url": url.original_url})
     return redirect(url.original_url, 302)
