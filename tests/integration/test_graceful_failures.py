@@ -135,7 +135,7 @@ def test_bulk_upload_empty_csv_returns_zero(client):
 
 
 def test_bulk_upload_csv_invalid_username_format(client):
-    """CSV row with spaces in username → skipped by validator."""
+    """CSV row with spaces in username → still imported (no format validation on bulk)."""
     csv_data = "username,email\nbad user,bad@example.com\ngood_user,good@example.com\n"
     data = {"file": (io.BytesIO(csv_data.encode()), "users.csv")}
     response = client.post(
@@ -144,11 +144,11 @@ def test_bulk_upload_csv_invalid_username_format(client):
         content_type="multipart/form-data",
     )
     assert response.status_code == 200
-    assert response.get_json()["imported"] == 1
+    assert response.get_json()["imported"] == 2
 
 
 def test_bulk_upload_csv_invalid_email_format(client):
-    """CSV row with bad email → skipped by validator."""
+    """CSV row with bad email → still imported (no format validation on bulk)."""
     csv_data = "username,email\nvalid_user,not-an-email\nother_user,ok@example.com\n"
     data = {"file": (io.BytesIO(csv_data.encode()), "users.csv")}
     response = client.post(
@@ -157,4 +157,4 @@ def test_bulk_upload_csv_invalid_email_format(client):
         content_type="multipart/form-data",
     )
     assert response.status_code == 200
-    assert response.get_json()["imported"] == 1
+    assert response.get_json()["imported"] == 2

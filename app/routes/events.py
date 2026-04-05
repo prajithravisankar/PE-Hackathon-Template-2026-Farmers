@@ -55,8 +55,8 @@ def list_events():
 @events_bp.route("/events", methods=["POST"])
 def create_event():
     data = request.get_json(silent=True)
-    if not data:
-        return error("Request body must be JSON", 400)
+    if not isinstance(data, dict):
+        return error("Request body must be a JSON object", 400)
 
     event_type = data.get("event_type")
     if not isinstance(event_type, str) or not event_type.strip():
@@ -80,8 +80,6 @@ def create_event():
     details = data.get("details")
     if details is None:
         details = {}
-    elif not isinstance(details, dict):
-        return error("'details' must be a JSON object", 422)
 
     event = Event.create(
         url=url_id,
