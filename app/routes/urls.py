@@ -40,7 +40,7 @@ def _log_event(url, user_id, event_type, details_dict):
 def create_url():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
-        return error("Request body must be a JSON object", 400)
+        return error("Request body must be a JSON object", 422)
 
     original_url = data.get("original_url")
     if not original_url or not is_valid_url(original_url):
@@ -137,7 +137,7 @@ def update_url(url_id):
 
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
-        return error("Request body must be a JSON object", 400)
+        return error("Request body must be a JSON object", 422)
 
     if "original_url" in data:
         if not is_valid_url(data["original_url"]):
