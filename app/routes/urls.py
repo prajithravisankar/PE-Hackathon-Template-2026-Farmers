@@ -56,13 +56,6 @@ def create_url():
         except User.DoesNotExist:
             return not_found("User")
 
-    # Twin's Paradox: never create the exact same masterpiece twice
-    existing = ShortURL.select().where(
-        (ShortURL.original_url == original_url) & (ShortURL.user == user_id)
-    ).first()
-    if existing:
-        return error("URL already exists for this user", 409)
-
     short_code = generate_short_code()
     now = datetime.datetime.utcnow()
 
