@@ -6,6 +6,7 @@ from peewee import fn
 from peewee import IntegrityError
 
 from app.models import Event, ShortURL, User
+from app.routes.events import serialize_event
 from app.utils.cache import cache_response, invalidate_cache
 from app.utils.response import created, error, not_found, success
 from app.utils.short_code import generate_short_code
@@ -237,30 +238,7 @@ def get_url_events(url_id):
         return not_found("URL")
 
     query = Event.select().where(Event.url == url_id).order_by(Event.id)
-
-    events = []
-    for event in query:
-        details = event.details
-        if isinstance(details, str):
-            try:
-                details = json.loads(details)
-            except (json.JSONDecodeError, TypeError):
-                details = {}
-        events.append({
-            "id": event.id,
-            "url_id": event.url_id,
-            "user_id": event.user_id,
-            "event_type": event.event_type,
-            "timestamp": event.timestamp.isoformat() if event.timestamp else None,
-            "details": details if details is not None else {},
-            "url": {
-                "id": url.id,
-                "short_code": url.short_code,
-                "original_url": url.original_url,
-                "title": url.title,
-            },
-        })
-
+    events = [serialize_event(e) for e in query]
     return success(events)
 
 
