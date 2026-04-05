@@ -201,6 +201,33 @@ flowchart LR
 
 ---
 
+## ADR-7: Alerting latency budget — how fast does an alert reach the operator?
+
+**Context:** The hackathon rubric requires alerting latency to be documented and meet a five-minute response objective.
+
+**Decision:** Model the worst-case end-to-end latency for the `ServiceDown` alert (the fastest-firing rule):
+
+| Stage                                 | Source                                        | Duration          |
+| ------------------------------------- | --------------------------------------------- | ----------------- |
+| Scrape interval                       | `prometheus.yml` → `scrape_interval: 10s`     | 10s               |
+| Rule evaluation interval              | `prometheus.yml` → `evaluation_interval: 15s` | 15s               |
+| Alert `for` period (must stay FIRING) | `alert_rules.yml` → `for: 1m`                 | 60s               |
+| Alertmanager group wait               | `alertmanager.yml` → `group_wait: 10s`        | 10s               |
+| **Worst-case total**                  |                                               | **95s (~1m 35s)** |
+
+**Rationale:**
+
+- Worst case: the failure happens 1ms after a scrape completes → we wait a full 10s for the next scrape, then up to 15s for the next evaluation cycle, then 60s of sustained failure to confirm it's not a flap, then 10s for Alertmanager to batch and send.
+- 95 seconds is well within the **5-minute (300s) response objective** — we have 3× headroom.
+- The fire drill in the checklist below validates this timing in practice.
+
+**Trade-offs:**
+
+- Reducing `for: 1m` to `for: 0s` would alert in ~25s but would generate false alarms during normal rolling restarts.
+- The 10s scrape interval (vs default 15s) deliberately shaves 5s off the worst-case path.
+
+---
+
 ## Alert Fire Drill Checklist
 
 1. Start the full stack: `docker-compose -f docker-compose.app.yml up -d --build`
@@ -212,3 +239,4 @@ flowchart LR
 7. Check Discord — notification should arrive within 2 minutes
 8. Restart the app: `docker-compose -f docker-compose.app.yml start app`
 9. Alert resolves — Discord gets a resolution message
+
