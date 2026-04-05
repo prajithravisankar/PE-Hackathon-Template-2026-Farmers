@@ -22,7 +22,7 @@ def serialize_event(event):
         "user_id": event.user_id,
         "event_type": event.event_type,
         "timestamp": event.timestamp.isoformat() if event.timestamp else None,
-        "details": details if details else {},
+        "details": details if details is not None else {},
     }
 
 
@@ -55,8 +55,8 @@ def list_events():
 @events_bp.route("/events", methods=["POST"])
 def create_event():
     data = request.get_json(silent=True)
-    if not data:
-        return error("Request body must be JSON", 400)
+    if not isinstance(data, dict):
+        return error("Request body must be a JSON object", 400)
 
     event_type = data.get("event_type")
     if not isinstance(event_type, str) or not event_type.strip():
@@ -66,12 +66,16 @@ def create_event():
     user_id = data.get("user_id")
 
     if url_id is not None:
+        if not isinstance(url_id, int) or isinstance(url_id, bool):
+            return error("url_id must be an integer", 422)
         try:
             ShortURL.get_by_id(url_id)
         except ShortURL.DoesNotExist:
             return not_found("URL")
 
     if user_id is not None:
+        if not isinstance(user_id, int) or isinstance(user_id, bool):
+            return error("user_id must be an integer", 422)
         try:
             User.get_by_id(user_id)
         except User.DoesNotExist:
@@ -80,8 +84,6 @@ def create_event():
     details = data.get("details")
     if details is None:
         details = {}
-    elif not isinstance(details, dict):
-        return error("'details' must be a JSON object", 422)
 
     event = Event.create(
         url=url_id,

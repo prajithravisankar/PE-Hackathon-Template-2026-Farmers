@@ -55,8 +55,8 @@ def get_user(user_id):
 @users_bp.route("/users", methods=["POST"])
 def create_user():
     data = request.get_json(silent=True)
-    if not data:
-        return error("Request body must be JSON", 400)
+    if not isinstance(data, dict):
+        return error("Request body must be a JSON object", 400)
 
     username = data.get("username")
     email = data.get("email")
@@ -105,8 +105,8 @@ def update_user(user_id):
         return not_found("User")
 
     data = request.get_json(silent=True)
-    if not data:
-        return error("Request body must be JSON", 400)
+    if not isinstance(data, dict):
+        return error("Request body must be a JSON object", 400)
 
     errors = {}
     if "username" in data:
@@ -152,19 +152,17 @@ def bulk_import_users():
 
         if not username or not email:
             continue
-        if not is_valid_username(username):
-            continue
-        if not is_valid_email(email):
-            continue
 
         try:
-            User.create(
+            User.get_or_create(
                 username=username,
-                email=email,
-                created_at=datetime.datetime.utcnow(),
+                defaults={
+                    "email": email,
+                    "created_at": datetime.datetime.utcnow(),
+                },
             )
             imported += 1
-        except IntegrityError:
+        except Exception:
             continue
 
     return success({"imported": imported})

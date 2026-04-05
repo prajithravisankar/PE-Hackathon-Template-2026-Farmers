@@ -39,8 +39,8 @@ def _log_event(url, user_id, event_type, details_dict):
 @urls_bp.route("/urls", methods=["POST"])
 def create_url():
     data = request.get_json(silent=True)
-    if not data:
-        return error("Request body must be JSON", 400)
+    if not isinstance(data, dict):
+        return error("Request body must be a JSON object", 400)
 
     original_url = data.get("original_url")
     if not original_url or not is_valid_url(original_url):
@@ -48,6 +48,8 @@ def create_url():
 
     user_id = data.get("user_id")
     if user_id is not None:
+        if not isinstance(user_id, int) or isinstance(user_id, bool):
+            return error("user_id must be an integer", 422)
         try:
             User.get_by_id(user_id)
         except User.DoesNotExist:
@@ -134,8 +136,8 @@ def update_url(url_id):
         return not_found("URL")
 
     data = request.get_json(silent=True)
-    if not data:
-        return error("Request body must be JSON", 400)
+    if not isinstance(data, dict):
+        return error("Request body must be a JSON object", 400)
 
     if "original_url" in data:
         if not is_valid_url(data["original_url"]):
@@ -214,5 +216,5 @@ def redirect_short_url(short_code):
     if not url.is_active:
         return error("URL is deactivated", 410)
 
-    _log_event(url, url.user_id, "visited", {"short_code": url.short_code})
+    _log_event(url, url.user_id, "visited", {"short_code": url.short_code, "original_url": url.original_url})
     return redirect(url.original_url, 302)
