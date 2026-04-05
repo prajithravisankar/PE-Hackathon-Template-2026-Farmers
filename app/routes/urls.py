@@ -235,6 +235,12 @@ def get_url_events(url_id):
             "event_type": event.event_type,
             "timestamp": event.timestamp.isoformat() if event.timestamp else None,
             "details": details if details is not None else {},
+            "url": {
+                "id": url.id,
+                "short_code": url.short_code,
+                "original_url": url.original_url,
+                "title": url.title,
+            },
         })
 
     return success(events)
