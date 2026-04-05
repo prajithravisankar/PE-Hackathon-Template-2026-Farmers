@@ -16,7 +16,8 @@ def serialize_event(event):
             details = json.loads(details)
         except (json.JSONDecodeError, TypeError):
             details = {}
-    return {
+
+    result = {
         "id": event.id,
         "url_id": event.url_id,
         "user_id": event.user_id,
@@ -24,6 +25,23 @@ def serialize_event(event):
         "timestamp": event.timestamp.isoformat() if event.timestamp else None,
         "details": details if details is not None else {},
     }
+
+    # Link URL data into event response
+    if event.url_id:
+        try:
+            url = ShortURL.get_by_id(event.url_id)
+            result["url"] = {
+                "id": url.id,
+                "short_code": url.short_code,
+                "original_url": url.original_url,
+                "title": url.title,
+            }
+        except ShortURL.DoesNotExist:
+            result["url"] = None
+    else:
+        result["url"] = None
+
+    return result
 
 
 @events_bp.route("/events", methods=["GET"])
