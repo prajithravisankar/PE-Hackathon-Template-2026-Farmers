@@ -17,23 +17,23 @@
 
 1. **Check container status:**
    ```bash
-   docker ps -a | grep app
+   docker ps -a | grep -E 'app1|app2|nginx'
    ```
    - If container is restarting: check logs (step 3)
    - If container is stopped: restart it (step 2)
 
-2. **Restart the app:**
+2. **Restart the app instances:**
    ```bash
-   docker-compose restart app
+   docker-compose restart app1 app2 nginx
    ```
    Wait 30 seconds, then verify:
    ```bash
-   curl -s http://localhost:5000/health | python -m json.tool
+   curl -s http://localhost/health | python -m json.tool
    ```
 
 3. **Check application logs:**
    ```bash
-   docker-compose logs --tail=50 app
+   docker-compose logs --tail=50 app1 app2
    ```
    Look for:
    - `OperationalError` → database connection issue (see DB Down section)
@@ -53,7 +53,7 @@
 5. **Escalate** if not resolved after 5 minutes. Gather: `docker-compose logs app`, `docker ps -a`, and the time the alert fired.
 
 **Resolution Verification:**
-- `curl http://localhost:5000/health` returns `{"status": "ok", "db": "ok", "redis": "ok"}`
+- `curl http://localhost/health` returns `{"status": "ok", "db": "ok", "redis": "ok"}`
 - Prometheus `up{job="url-shortener"} == 1`
 - Discord alert resolves automatically
 
@@ -75,7 +75,7 @@
 
 2. **Check application logs for errors:**
    ```bash
-   docker-compose logs --tail=100 app | python -c "
+   docker-compose logs --tail=100 app1 app2 | python -c "
    import sys, json
    for line in sys.stdin:
        try:
@@ -102,7 +102,7 @@
    Roll back to the previous commit:
    ```bash
    git checkout <previous_sha>
-   docker-compose up -d --build app
+   docker-compose up -d --build app1 app2
    ```
 
 5. **If errors are input-related (4xx):** No action needed — these are client errors, not service errors. Verify the alert threshold isn't counting 4xx as errors.
@@ -152,14 +152,14 @@
    ```
    Low hit ratio = cache isn't helping. Check TTL values and whether cache invalidation is too aggressive.
 
-5. **Quick mitigation — restart app to clear any connection pool exhaustion:**
+5. **Quick mitigation — restart app instances to clear any connection pool exhaustion:**
    ```bash
-   docker-compose restart app
+   docker-compose restart app1 app2
    ```
 
 **Resolution Verification:**
 - Grafana p95 latency panel drops below 1s
-- `curl -w "%{time_total}\n" -o /dev/null -s http://localhost:5000/users` shows < 500ms
+- `curl -w "%{time_total}\n" -o /dev/null -s http://localhost/users` shows < 500ms
 
 ---
 
