@@ -211,6 +211,35 @@ def get_url_stats(url_id):
     })
 
 
+@urls_bp.route("/urls/<int:url_id>/events", methods=["GET"])
+def get_url_events(url_id):
+    try:
+        url = ShortURL.get_by_id(url_id)
+    except ShortURL.DoesNotExist:
+        return not_found("URL")
+
+    query = Event.select().where(Event.url == url_id).order_by(Event.id)
+
+    events = []
+    for event in query:
+        details = event.details
+        if isinstance(details, str):
+            try:
+                details = json.loads(details)
+            except (json.JSONDecodeError, TypeError):
+                details = {}
+        events.append({
+            "id": event.id,
+            "url_id": event.url_id,
+            "user_id": event.user_id,
+            "event_type": event.event_type,
+            "timestamp": event.timestamp.isoformat() if event.timestamp else None,
+            "details": details if details is not None else {},
+        })
+
+    return success(events)
+
+
 @urls_bp.route("/<short_code>", methods=["GET"])
 def redirect_short_url(short_code):
     try:
