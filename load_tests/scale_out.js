@@ -6,13 +6,14 @@ import { check, sleep } from "k6";
 // Or with custom base URL: k6 run -e BASE_URL=http://localhost:80 load_tests/scale_out.js
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:80";
+const RUN_ID = Date.now();
 
 export const options = {
   vus: 200,
   duration: "30s",
   thresholds: {
-    http_req_duration: ["p(95)<3000"],  // Silver SLO: p95 < 3s
-    http_req_failed: ["rate<0.05"],     // < 5% error rate
+    http_req_duration: ["p(95)<3000"], // Silver SLO: p95 < 3s
+    http_req_failed: ["rate<0.05"], // < 5% error rate
   },
 };
 
@@ -47,10 +48,10 @@ export default function () {
   const createRes = http.post(
     `${BASE_URL}/users`,
     JSON.stringify({
-      username: `scale_${__VU}_${__ITER}`,
-      email: `scale_${__VU}_${__ITER}@load.test`,
+      username: `s${RUN_ID}_${__VU}_${__ITER}`,
+      email: `s${RUN_ID}_${__VU}_${__ITER}@load.test`,
     }),
-    { headers: { "Content-Type": "application/json" } }
+    { headers: { "Content-Type": "application/json" } },
   );
   check(createRes, {
     "create user status 201": (r) => r.status === 201,

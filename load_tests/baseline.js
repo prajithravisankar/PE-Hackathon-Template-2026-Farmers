@@ -2,6 +2,7 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:5000";
+const RUN_ID = Date.now();
 
 export const options = {
   vus: 50,
@@ -43,10 +44,10 @@ export default function () {
   const createRes = http.post(
     `${BASE_URL}/users`,
     JSON.stringify({
-      username: `k6user_${__VU}_${__ITER}`,
-      email: `k6_${__VU}_${__ITER}@load.test`,
+      username: `b${RUN_ID}_${__VU}_${__ITER}`,
+      email: `b${RUN_ID}_${__VU}_${__ITER}@load.test`,
     }),
-    { headers: { "Content-Type": "application/json" } }
+    { headers: { "Content-Type": "application/json" } },
   );
   check(createRes, {
     "create user status 201": (r) => r.status === 201,

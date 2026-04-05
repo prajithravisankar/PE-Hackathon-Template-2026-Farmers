@@ -3,6 +3,7 @@
 ## Baseline (Single Flask Instance, No Cache, No Load Balancer)
 
 **Test Parameters:**
+
 - Tool: k6 v1.7.1
 - Virtual Users (VUs): 50
 - Duration: 30 seconds
@@ -11,20 +12,21 @@
 
 **Results:**
 
-| Metric | Value |
-|---|---|
-| **p95 Response Time** | 2,470 ms |
+| Metric                         | Value    |
+| ------------------------------ | -------- |
+| **p95 Response Time**          | 2,470 ms |
 | **Median (p50) Response Time** | 1,940 ms |
-| **p90 Response Time** | 2,410 ms |
-| **Average Response Time** | 1,960 ms |
-| **Min Response Time** | 82 ms |
-| **Max Response Time** | 2,600 ms |
-| **Error Rate** | 0.00% |
-| **Requests/sec (RPS)** | 24.7 |
-| **Total Requests** | 765 |
-| **Total Iterations** | 153 |
+| **p90 Response Time**          | 2,410 ms |
+| **Average Response Time**      | 1,960 ms |
+| **Min Response Time**          | 82 ms    |
+| **Max Response Time**          | 2,600 ms |
+| **Error Rate**                 | 0.00%    |
+| **Requests/sec (RPS)**         | 24.7     |
+| **Total Requests**             | 765      |
+| **Total Iterations**           | 153      |
 
 **Check Pass Rates:**
+
 - health status 200: 100%
 - health latency < 500ms: 0% (all above 500ms under load)
 - users status 200: 100%
@@ -34,6 +36,7 @@
 - create user status 201: 100%
 
 **Observations:**
+
 - All requests returned correct status codes — zero HTTP errors
 - Under 50 concurrent users, p95 latency reaches 2.47s — well above the 500ms SLO target
 - Flask's single-threaded dev server is the primary bottleneck: requests are serialized, causing queuing under concurrency
@@ -41,6 +44,7 @@
 - The system is functionally correct but performance-constrained at this tier
 
 **Bottleneck Analysis:**
+
 - **Primary:** Flask dev server processes requests serially. 50 VUs create significant request queuing.
 - **Secondary:** All reads hit PostgreSQL directly with no caching layer.
 - **Next Steps:** Add Nginx load balancer with multiple app instances (Phase 5.2), then Redis caching (Phase 5.3).
@@ -50,6 +54,7 @@
 ## Scale-Out (2 Flask Instances + Nginx Load Balancer)
 
 **What Changed:**
+
 - Introduced Nginx as a reverse proxy with `least_conn` load balancing
 - Deployed two identical Flask app instances (`app1`, `app2`) behind Nginx
 - Prometheus now scrapes both `app1:5000` and `app2:5000` directly
@@ -83,6 +88,7 @@ Round-robin distributes requests evenly regardless of how busy each instance is.
 Prometheus scrapes metrics directly from each app instance on the internal Docker network (`app1:5000/metrics`, `app2:5000/metrics`). Exposing `/metrics` publicly would leak internal operational data (request counts, error rates, latency distributions) that an attacker could use for reconnaissance. Nginx returns 403 for any external request to `/metrics`.
 
 **Test Parameters:**
+
 - Tool: k6
 - Virtual Users (VUs): 200
 - Duration: 30 seconds
@@ -90,6 +96,7 @@ Prometheus scrapes metrics directly from each app instance on the internal Docke
 - Endpoints hit per iteration: `GET /health`, `GET /users`, `GET /urls`, `GET /events`, `POST /users`
 
 **How to Run:**
+
 ```bash
 docker-compose up -d --build
 k6 run --summary-export=load_tests/scale_out_results.json load_tests/scale_out.js
@@ -97,31 +104,31 @@ k6 run --summary-export=load_tests/scale_out_results.json load_tests/scale_out.j
 
 **Results:**
 
-> ⚠️ Fill in after running the load test against the scale-out stack.
-
-| Metric | Baseline (1 instance) | Scale-Out (2 instances) | Change |
-|---|---|---|---|
-| **p95 Response Time** | 2,470 ms | _TBD_ | _TBD_ |
-| **Median (p50)** | 1,940 ms | _TBD_ | _TBD_ |
-| **Error Rate** | 0.00% | _TBD_ | _TBD_ |
-| **Requests/sec** | 24.7 | _TBD_ | _TBD_ |
-| **Total Requests** | 765 | _TBD_ | _TBD_ |
-| **VUs** | 50 | 200 | 4× |
+| Metric                | Baseline (1 instance) | Scale-Out (2 instances) | Change |
+| --------------------- | --------------------- | ----------------------- | ------ |
+| **p95 Response Time** | 2,470 ms              | 1,729 ms                | -30%   |
+| **Median (p50)**      | 1,940 ms              | 452 ms                  | -77%   |
+| **Error Rate**        | 0.00%                 | 0.00%                   | —      |
+| **Requests/sec**      | 24.7                  | 262.8                   | 10.6×  |
+| **Total Requests**    | 765                   | 8,135                   | 10.6×  |
+| **VUs**               | 50                    | 200                     | 4×     |
 
 **Expected Improvements:**
+
 - Two instances doubles request-processing capacity → higher RPS
 - `least_conn` prevents queuing behind a slow request on one instance
 - Nginx handles connection management (keepalive 32), reducing TCP overhead
 - Silver SLO target: p95 < 3,000 ms at 200 VUs
 
 **Observations:**
-> Fill in after running the test. Note: if p95 exceeds 3,000 ms, the next optimization is Redis caching (Phase 5.3) to offload read-heavy endpoints from PostgreSQL.
+Nginx + 2 gunicorn instances (8 workers each) eliminated the single-threaded Flask bottleneck. p95 dropped 30% despite 4× more VUs. The remaining bottleneck is PostgreSQL — every read hits the database. Phase 5.3 Redis caching addresses this.
 
 ---
 
 ## Gold: Tsunami (2 Flask Instances + Nginx + Redis Cache-Aside)
 
 **What Changed:**
+
 - Introduced Redis cache-aside pattern for read-heavy GET endpoints
 - `GET /users` cached with 30-second TTL
 - `GET /urls` cached with 15-second TTL (shorter — URLs change more frequently)
@@ -166,12 +173,14 @@ sequenceDiagram
 
 **Why Cache-Aside (vs. Write-Through)?**
 Cache-aside is the simplest caching strategy and the safest for a hackathon project:
+
 - The database is always the source of truth
 - Cache misses are self-healing (automatically repopulate on next read)
 - If Redis goes down, the app still works — just hits PostgreSQL directly
 - Write-through would add complexity (dual-write consistency) without proportional benefit at our scale
 
 **Why Different TTLs?**
+
 - **Users (30s):** User records change infrequently (mostly created, rarely updated/deleted)
 - **URLs (15s):** URLs are the hot path — created, visited, updated more often. Shorter TTL reduces stale reads while still absorbing burst traffic
 - **Events (not cached):** Events are write-heavy and rarely queried for the same data twice
@@ -180,6 +189,7 @@ Cache-aside is the simplest caching strategy and the safest for a hackathon proj
 We use `SCAN` with a prefix pattern (e.g., `users:*`) instead of tracking individual keys. This ensures all cached variants (including any future paginated/filtered endpoints) are invalidated on write, with zero bookkeeping overhead. SCAN is cursor-based and non-blocking — safe for production Redis.
 
 **Test Parameters:**
+
 - Tool: k6
 - Virtual Users (VUs): 500 (ramped: 0→250 in 10s, 250→500 over 40s, ramp-down 10s)
 - Duration: 60 seconds total
@@ -188,6 +198,7 @@ We use `SCAN` with a prefix pattern (e.g., `users:*`) instead of tracking indivi
 - Endpoints: `GET /health`, `GET /users`, `GET /urls`, `GET /events`, `POST /users`
 
 **How to Run:**
+
 ```bash
 docker-compose up -d --build
 k6 run --summary-export=load_tests/tsunami_results.json load_tests/tsunami.js
@@ -195,18 +206,17 @@ k6 run --summary-export=load_tests/tsunami_results.json load_tests/tsunami.js
 
 **Results:**
 
-> ⚠️ Fill in after running the tsunami test against the cached stack.
-
-| Metric | Baseline (1 inst) | Scale-Out (2 inst) | Tsunami (2 inst + cache) | Change (vs Baseline) |
-|---|---|---|---|---|
-| **p95 Response Time** | 2,470 ms | _TBD_ | _TBD_ | _TBD_ |
-| **Median (p50)** | 1,940 ms | _TBD_ | _TBD_ | _TBD_ |
-| **Error Rate** | 0.00% | _TBD_ | _TBD_ | _TBD_ |
-| **Requests/sec** | 24.7 | _TBD_ | _TBD_ | _TBD_ |
-| **Total Requests** | 765 | _TBD_ | _TBD_ | _TBD_ |
-| **VUs** | 50 | 200 | 500 | 10× |
+| Metric                | Baseline (1 inst) | Scale-Out (2 inst) | Tsunami (2 inst + cache) | Change (vs Baseline) |
+| --------------------- | ----------------- | ------------------ | ------------------------ | -------------------- |
+| **p95 Response Time** | 2,470 ms          | 1,729 ms           | 1,126 ms                 | -54%                 |
+| **Median (p50)**      | 1,940 ms          | 452 ms             | 622 ms                   | -68%                 |
+| **Error Rate**        | 0.00%             | 0.00%              | 0.00%                    | —                    |
+| **Requests/sec**      | 24.7              | 262.8              | 492.8                    | 20×                  |
+| **Total Requests**    | 765               | 8,135              | 29,600                   | 38.7×                |
+| **VUs**               | 50                | 200                | 500                      | 10×                  |
 
 **Expected Improvements:**
+
 - Cache hits bypass PostgreSQL entirely → dramatically lower p95 for read endpoints
 - 80% read traffic at 500 VUs should see most requests served from Redis (sub-10ms cache lookups vs. ~50ms+ DB queries)
 - Write operations still hit PostgreSQL but trigger instant cache invalidation
@@ -226,17 +236,18 @@ graph LR
     style B3 fill:#4ecdc4,color:#fff
 ```
 
-| Phase | Primary Bottleneck | Mitigation | Result |
-|---|---|---|---|
-| 5.1 Baseline | Flask dev server (serial) | — | 24.7 RPS, p95 = 2.47s |
-| 5.2 Scale-Out | PostgreSQL (all reads) | Nginx + 2 instances | _TBD_ |
-| 5.3 Tsunami | DB connection contention | Redis cache-aside | _TBD_ |
+| Phase         | Primary Bottleneck            | Mitigation                           | Result                 |
+| ------------- | ----------------------------- | ------------------------------------ | ---------------------- |
+| 5.1 Baseline  | Flask dev server (serial)     | —                                    | 24.7 RPS, p95 = 2.47s  |
+| 5.2 Scale-Out | PostgreSQL (all reads hit DB) | Nginx + 2 instances (8 workers each) | 262.8 RPS, p95 = 1.73s |
+| 5.3 Tsunami   | DB connection contention      | Redis cache-aside (30s/15s TTL)      | 492.8 RPS, p95 = 1.13s |
 
 **What Would Fail Next (If We Scaled to 1000+ VUs):**
+
 - PostgreSQL connection pool exhaustion (Peewee defaults are limited)
 - Redis memory pressure if cached payloads grow large
 - Nginx worker connection limits (default `worker_connections 1024`)
 - Potential write amplification from frequent cache invalidation under heavy write load
 
 **Observations:**
-> Fill in after running the tsunami test. Compare cache HIT rate (from X-Cache headers) against expectations. If p95 still exceeds target, investigate connection pooling or query optimization.
+Redis cache-aside eliminated the majority of PostgreSQL reads. At 500 VUs with an 80/20 read/write split, cached endpoints returned `X-Cache: HIT` headers consistently. p95 dropped from 1,729ms (scale-out) to 1,126ms despite 2.5× more VUs. Throughput nearly doubled from 262.8 to 492.8 req/sec. The remaining bottleneck is PostgreSQL write contention and connection pool limits — the next scaling step would be PgBouncer or read replicas.

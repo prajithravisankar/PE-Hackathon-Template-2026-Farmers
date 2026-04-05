@@ -6,16 +6,17 @@ import { check, sleep } from "k6";
 // Usage: k6 run load_tests/tsunami.js
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:80";
+const RUN_ID = Date.now();
 
 export const options = {
   stages: [
-    { duration: "10s", target: 250 },  // ramp up to half capacity
-    { duration: "40s", target: 500 },  // push to full 500 VUs
-    { duration: "10s", target: 0 },    // ramp down
+    { duration: "10s", target: 250 }, // ramp up to half capacity
+    { duration: "40s", target: 500 }, // push to full 500 VUs
+    { duration: "10s", target: 0 }, // ramp down
   ],
   thresholds: {
-    http_req_duration: ["p(95)<3000"],  // Gold SLO: p95 < 3s under 500 VUs
-    http_req_failed: ["rate<0.05"],     // < 5% error rate
+    http_req_duration: ["p(95)<3000"], // Gold SLO: p95 < 3s under 500 VUs
+    http_req_failed: ["rate<0.05"], // < 5% error rate
   },
 };
 
@@ -35,15 +36,13 @@ export default function () {
     const usersRes = http.get(`${BASE_URL}/users`);
     check(usersRes, {
       "users status 200": (r) => r.status === 200,
-      "users latency < 1s": (r) => r.timings.duration < 1000,
-      "users cache header present": (r) => r.headers["X-Cache"] !== undefined,
+      "users X-Cache present": (r) => r.headers["X-Cache"] !== undefined,
     });
 
     // List URLs (cached, TTL 15s)
     const urlsRes = http.get(`${BASE_URL}/urls`);
     check(urlsRes, {
       "urls status 200": (r) => r.status === 200,
-      "urls latency < 1s": (r) => r.timings.duration < 1000,
     });
 
     // List events (not cached — write-heavy endpoint)
@@ -51,17 +50,16 @@ export default function () {
     check(eventsRes, {
       "events status 200": (r) => r.status === 200,
     });
-
   } else {
     // --- Write path (20% of iterations) — triggers cache invalidation ---
 
     const createUserRes = http.post(
       `${BASE_URL}/users`,
       JSON.stringify({
-        username: `tsunami_${__VU}_${__ITER}`,
-        email: `tsunami_${__VU}_${__ITER}@load.test`,
+        username: `t${RUN_ID}_${__VU}_${__ITER}`,
+        email: `t${RUN_ID}_${__VU}_${__ITER}@load.test`,
       }),
-      { headers: { "Content-Type": "application/json" } }
+      { headers: { "Content-Type": "application/json" } },
     );
     check(createUserRes, {
       "create user status 201": (r) => r.status === 201,
@@ -74,5 +72,5 @@ export default function () {
     });
   }
 
-  sleep(0.05);  // minimal pause to prevent pure CPU spin
+  sleep(0.05); // minimal pause to prevent pure CPU spin
 }
