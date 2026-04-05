@@ -16,23 +16,6 @@ urls_bp = Blueprint("urls", __name__)
 
 
 def serialize_url(url):
-    events_list = []
-    for event in Event.select().where(Event.url == url.id).order_by(Event.id):
-        details = event.details
-        if isinstance(details, str):
-            try:
-                details = json.loads(details)
-            except (json.JSONDecodeError, TypeError):
-                details = {}
-        events_list.append({
-            "id": event.id,
-            "url_id": event.url_id,
-            "user_id": event.user_id,
-            "event_type": event.event_type,
-            "timestamp": event.timestamp.isoformat() if event.timestamp else None,
-            "details": details if details is not None else {},
-        })
-
     return {
         "id": url.id,
         "user_id": url.user_id,
@@ -42,7 +25,6 @@ def serialize_url(url):
         "is_active": url.is_active,
         "created_at": url.created_at.isoformat() if url.created_at else None,
         "updated_at": url.updated_at.isoformat() if url.updated_at else None,
-        "events": events_list,
     }
 
 
