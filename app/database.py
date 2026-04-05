@@ -1,5 +1,5 @@
 import os
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from peewee import DatabaseProxy, Model, PostgresqlDatabase
 
@@ -15,13 +15,22 @@ def init_db(app):
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
         parsed = urlparse(database_url)
-        database = PostgresqlDatabase(
-            parsed.path.lstrip("/"),
+        qs = parse_qs(parsed.query)
+        sslmode = os.environ.get(
+            "DATABASE_SSLMODE",
+            qs.get("sslmode", [None])[0],
+        )
+        kwargs = dict(
             host=parsed.hostname,
             port=parsed.port or 5432,
             user=parsed.username,
             password=parsed.password,
-            sslmode=os.environ.get("DATABASE_SSLMODE", "require"),
+        )
+        if sslmode:
+            kwargs["sslmode"] = sslmode
+        database = PostgresqlDatabase(
+            parsed.path.lstrip("/"),
+            **kwargs,
         )
     else:
         database = PostgresqlDatabase(
