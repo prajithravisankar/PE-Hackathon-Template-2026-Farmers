@@ -6,6 +6,7 @@ from flask import Blueprint, request
 from peewee import IntegrityError
 
 from app.models import User
+from app.utils.cache import cache_response, invalidate_cache
 from app.utils.response import created, error, not_found, success
 from app.utils.validators import is_valid_email, is_valid_username
 
@@ -22,6 +23,7 @@ def serialize_user(user):
 
 
 @users_bp.route("/users", methods=["GET"])
+@cache_response("users", ttl=30)
 def list_users():
     page = request.args.get("page", type=int)
     per_page = request.args.get("per_page", type=int)
@@ -84,6 +86,7 @@ def create_user():
             return error("Email already exists", 409)
         return error("Duplicate entry", 409)
 
+    invalidate_cache("users")
     return created(serialize_user(user))
 
 
@@ -94,6 +97,7 @@ def delete_user(user_id):
     except User.DoesNotExist:
         return not_found("User")
     user.delete_instance()
+    invalidate_cache("users")
     return "", 204
 
 
@@ -133,6 +137,7 @@ def update_user(user_id):
             return error("Email already exists", 409)
         return error("Duplicate entry", 409)
 
+    invalidate_cache("users")
     return success(serialize_user(user))
 
 
@@ -165,4 +170,5 @@ def bulk_import_users():
         except Exception:
             continue
 
+    invalidate_cache("users")
     return success({"imported": imported})
