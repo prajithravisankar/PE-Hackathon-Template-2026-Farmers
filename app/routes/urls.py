@@ -161,9 +161,9 @@ def update_url(url_id):
     url.save()
 
     if deactivated:
-        _log_event(url, url.user_id, "deactivated", {"short_code": url.short_code})
+        _log_event(url, url.user_id, "deactivated", {"short_code": url.short_code, "original_url": url.original_url})
     else:
-        _log_event(url, url.user_id, "updated", {"short_code": url.short_code})
+        _log_event(url, url.user_id, "updated", {"short_code": url.short_code, "original_url": url.original_url})
 
     invalidate_cache("urls")
     return success(serialize_url(url))
@@ -176,7 +176,7 @@ def delete_url(url_id):
     except ShortURL.DoesNotExist:
         return not_found("URL")
 
-    _log_event(url, url.user_id, "deleted", {"short_code": url.short_code})
+    _log_event(url, url.user_id, "deleted", {"short_code": url.short_code, "original_url": url.original_url})
     url.delete_instance()
     invalidate_cache("urls")
     return "", 204
